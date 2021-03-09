@@ -10,6 +10,7 @@ library('WGCNA')
 library('tidyverse')
 library('flashClust')
 library('igraph')
+library('DESeq2')
 library('here')
 
 # The following setting is important, do not omit.
@@ -24,14 +25,15 @@ allowWGCNAThreads(nThreads=7) # set 7 as i am using my desktop computer, core i7
 
 
 # Read in count data
-raw_counts <- readRDS(here::here('read.counts.RDS'))
+#raw_counts <- readRDS(here::here('read.counts.RDS'))
+raw_counts <- read.table("countsNA.txt" , row.names = 1 , header = T)
 #raw_counts <- readRDS("C:/Users/John Gitau/Desktop/MSc Research/R/trial/read.counts.RDS")
 head(raw_counts)
 dim(raw_counts)
 
 
 #Read in metadata file
-metadata <- readRDS(here::here('samples.metadata.RDS'))
+metadata <- readRDS('/home/rwanjiru/gitau/original/Rstudio/https:/github.com/Jkgitau/Gene-Co-expression-Network-development.git/samples.metadata.RDS')
 
 
 ddsFullCountTable <- DESeqDataSetFromMatrix(
@@ -269,6 +271,9 @@ plot(gene_tree, xlab="", sub="", main = "Gene clustering based on TOM dissimilar
      labels = FALSE, hang = 0.04)
 #dev.off()
 
+# https://stackoverflow.com/questions/46749829/the-height-component-of-tree-is-not-sorted-error-in-cutree
+gene_tree$height <- round(gene_tree$height, 6)
+
 # identify the modules
 module_labels <- cutreeDynamicTree(gene_tree, deepSplit = TRUE, 
                                    minModuleSize = 30)
@@ -321,11 +326,11 @@ length(module_hub_genes)
 
 # select modules of interest
 
-interesting_modules <- c('black', 'blue', 'brown','cyan',
-                         'darkgreen','darkgrey','darkorange','darkred', 'darkturquoise','green',
-                         'greenyellow','grey','grey60','lightcyan','lightgreen','lightyellow',
-                         'magenta','midnightblue','orange','pink','purple','red','royalblue',
-                         'salmon','skyblue','tan','turquoise','white','yellow') # all module colours, thus the whole network
+interesting_modules <- c('black', 'blue','brown','cyan','darkgreen','darkgrey','darkorange',
+                         'darkred','darkturquoise','green','greenyellow','grey60','lightcyan',
+                         'lightgreen','lightyellow','magenta','midnightblue','orange','pink',
+                         'purple','red','royalblue','salmon','skyblue','tan','turquoise','white','yellow')
+ # all module colours, thus the whole network
 
 # enriched modules
 #enriched_modules <- c("black","tan","brown","blue","turquoise","magenta","darkturquoise",
@@ -333,17 +338,17 @@ interesting_modules <- c('black', 'blue', 'brown','cyan',
 
 
 # enriched modules
-enriched_modules <- c("black","blue","brown","green","pink","red","turquoise","yellow")
+#enriched_modules <- c("black","blue","brown","green","pink","red","turquoise","yellow")
 
 
 # obtain gene ids
 gene_ids <- rownames(log_counts)
 
 # select module genes
-#inModules <- is.finite(match(module.colours, interesting.modules)) # whole network modules
+inModules <- is.finite(match(module_colours, interesting_modules)) # whole network modules
 
 #inModules <- is.finite(match(module.colours, enriched.modules)) # enriched modules
-inModules <- is.finite(match(module_colours, c("black", "blue", "brown", "green", "pink", "red", "turquoise", "yellow"))) # individual modules
+#inModules <- is.finite(match(module_colours, c("black", "blue", "brown", "green", "pink", "red", "turquoise", "yellow"))) # individual modules
 
 modGenes <- gene_ids[inModules]
 
@@ -351,27 +356,17 @@ modGenes <- gene_ids[inModules]
 modTOM <- TOM[inModules, inModules]
 dimnames(modTOM) <- list(modGenes, modGenes)
 
+network_threshold <- 0.3
+
 # Export the network into edge and node list files Cytoscape can read
 exportNetworkToCytoscape(modTOM,
-                         edgeFile = "CytoscapeInput-edges_skyblue_white_module_thresh0.txt",
-                         nodeFile = "CytoscapeInput-nodes_skyblue_white_module_thresh0.txt",
+                         edgeFile = "CytoscapeInput-edges_thresh0.3.txt",
+                         nodeFile = "CytoscapeInput-nodes_thresh0.3.txt",
                          weighted = TRUE,
-                         threshold = 0,
+                         threshold = network_threshold,
                          nodeNames = modGenes,
                          nodeAttr = module_colours[inModules]);
 
-
-# Also, export the network as graphml format
-# use export_network_to_graphml function
-
-source("network_export_graphml.R")
-
-# the whole network
-entire_network <- export_network_to_graphml(TOM, 
-                                            filename = "entire_network_thresh0.graphml",
-                                            threshold = 0.4, #### why not 0.4
-                                            nodeAttr = gene_ids,
-                                            max_edge_ratio = 3)
 
 
 # network modules
@@ -385,14 +380,10 @@ node_attributes <- as.data.frame(node_attributes)
 # Add RGB versions of colour modules
 node_attributes$colourRGB <- col2hex(node_attributes$module)
 
-modules_network <- export_network_to_graphml(modTOM, 
-                                             filename = "modules_network_thresh0.02.graphml",
-                                             threshold = 0.02, ###threshold change ######
-                                             nodeAttrDataFrame = node_attributes)
 
 # write out a node attributes files with hexadecimal colour names for module genes
 write.table(node_attributes, 
-            file = "Cytoscape_node_attributes_interesting_modules_skyblue_white.txt",
+            file = "Cytoscape_node_attributes_thresh0.3.txt",
             row.names = FALSE, 
             quote = FALSE, sep = "\t")
 
